@@ -6,6 +6,7 @@ import HerbList from '../pages/HerbList';
 import MethodList from '../pages/MethodList';
 import BatchBoard from '../pages/BatchBoard';
 import SampleLedger from '../pages/SampleLedger';
+import ConflictCenter from '../pages/ConflictCenter';
 
 function NotFound() {
   return (
@@ -22,7 +23,7 @@ function NotFound() {
   );
 }
 
-/** 全部路由：首页 + 药材台账 / 炮制方法 / 工序记录台 / 留样台账 */
+/** 全部路由：首页 + 药材台账 / 炮制方法 / 工序记录台 / 留样台账 / 合并冲突 */
 export const routes: RouteObject[] = [
   {
     path: '/',
@@ -33,6 +34,7 @@ export const routes: RouteObject[] = [
       { path: 'methods', element: <MethodList /> },
       { path: 'batches', element: <BatchBoard /> },
       { path: 'samples', element: <SampleLedger /> },
+      { path: 'conflicts', element: <ConflictCenter /> },
       { path: '*', element: <NotFound /> },
     ],
   },

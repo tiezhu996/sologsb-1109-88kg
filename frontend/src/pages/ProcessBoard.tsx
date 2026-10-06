@@ -8,6 +8,7 @@ import { useHerbStore } from '../stores/herbStore';
 import { useMethodStore } from '../stores/methodStore';
 import { useBatchStore } from '../stores/batchStore';
 import { useSampleStore } from '../stores/sampleStore';
+import { useConflictStore } from '../stores/conflictStore';
 import { dueSamples, formatDate } from '../utils/degree';
 import type { ProcessBatch } from '../types/process-batch';
 import type { SampleExpiry } from '../types/retain-sample';
@@ -20,9 +21,12 @@ export default function ProcessBoard() {
   const methods = useMethodStore((s) => s.methods);
   const batches = useBatchStore((s) => s.batches);
   const samples = useSampleStore((s) => s.samples);
+  const conflicts = useConflictStore((s) => s.conflicts);
 
   const pending = useMemo(() => batches.filter((b) => !b.locked), [batches]);
   const due = useMemo(() => dueSamples(samples, 30), [samples]);
+  const pendingConflicts = useMemo(() => conflicts.filter((c) => c.status === 'pending').length, [conflicts]);
+  const resolvedConflicts = conflicts.length - pendingConflicts;
   const degreeCount = useMemo(() => {
     return batches.reduce(
       (acc, b) => {
@@ -99,19 +103,44 @@ export default function ProcessBoard() {
       </Paragraph>
 
       <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
-        <Col xs={12} md={6}>
+        <Col xs={12} md={8} lg={4}>
           <StatBadge label="待炮制（未锁定）批次" value={pending.length} unit="批" status="warning" hint="得率与程度判定提交后即锁定" />
         </Col>
-        <Col xs={12} md={6}>
+        <Col xs={12} md={8} lg={4}>
           <StatBadge label="在册药材批次" value={herbs.length} unit="批" />
         </Col>
-        <Col xs={12} md={6}>
+        <Col xs={12} md={8} lg={4}>
           <StatBadge label="30 天内到期留样" value={due.length} unit="份" status={due.length > 0 ? 'error' : 'success'} />
         </Col>
-        <Col xs={12} md={6}>
+        <Col xs={12} md={8} lg={4}>
           <StatBadge label="平均得率" value={avgYield} unit="%" status="success" hint={`适中 ${degreeCount['适中']} / 不及 ${degreeCount['不及']} / 太过 ${degreeCount['太过']}`} />
         </Col>
+        <Col xs={12} md={8} lg={4}>
+          <StatBadge
+            label="待处理合并冲突"
+            value={pendingConflicts}
+            unit="条"
+            status={pendingConflicts > 0 ? 'error' : 'success'}
+            hint={`备份对账冲突未决前不入本机；已处理 ${resolvedConflicts} 条留痕`}
+          />
+        </Col>
       </Row>
+
+      {pendingConflicts > 0 ? (
+        <Alert
+          style={{ marginBottom: 16 }}
+          type="error"
+          showIcon
+          message={`备份合并冲突：${pendingConflicts} 条同名记录两边都改过，待选定后才会写入本机`}
+          description={
+            <Link to="/conflicts">
+              <Button size="small" type="link">
+                前往合并冲突处理台
+              </Button>
+            </Link>
+          }
+        />
+      ) : null}
 
       {due.length > 0 ? (
         <Alert

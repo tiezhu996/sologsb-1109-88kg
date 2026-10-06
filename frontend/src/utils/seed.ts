@@ -147,8 +147,15 @@ export async function seedIfEmpty(): Promise<void> {
 
 /** 清空全部本地数据（用于重置演示环境） */
 export async function resetAll(): Promise<void> {
-  await db.transaction('rw', db.herbs, db.methods, db.batches, db.samples, db.meta, async () => {
-    await Promise.all([db.herbs.clear(), db.methods.clear(), db.batches.clear(), db.samples.clear(), db.meta.clear()]);
+  await db.transaction('rw', [db.herbs, db.methods, db.batches, db.samples, db.meta, db.conflicts], async () => {
+    await Promise.all([
+      db.herbs.clear(),
+      db.methods.clear(),
+      db.batches.clear(),
+      db.samples.clear(),
+      db.meta.clear(),
+      db.conflicts.clear(),
+    ]);
   });
   await seedIfEmpty();
 }

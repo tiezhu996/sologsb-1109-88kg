@@ -7,6 +7,8 @@ import {
   ProfileOutlined,
   DashboardOutlined,
   DownloadOutlined,
+  ImportOutlined,
+  MergeCellsOutlined,
 } from '@ant-design/icons';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { seedIfEmpty } from './utils/seed';
@@ -14,27 +16,25 @@ import { useHerbStore } from './stores/herbStore';
 import { useMethodStore } from './stores/methodStore';
 import { useBatchStore } from './stores/batchStore';
 import { useSampleStore } from './stores/sampleStore';
+import { useConflictStore } from './stores/conflictStore';
 import { downloadText, exportBackupJson } from './utils/export';
+import ImportMergeModal from './components/ImportMergeModal';
 
 const { Header, Sider, Content, Footer } = Layout;
 const { Title, Text } = Typography;
 
-const MENU_ITEMS = [
-  { key: '/', icon: <DashboardOutlined />, label: <Link to="/">首页总览</Link> },
-  { key: '/herbs', icon: <ExperimentOutlined />, label: <Link to="/herbs">药材台账</Link> },
-  { key: '/methods', icon: <FireOutlined />, label: <Link to="/methods">炮制方法</Link> },
-  { key: '/batches', icon: <ProfileOutlined />, label: <Link to="/batches">工序记录台</Link> },
-  { key: '/samples', icon: <InboxOutlined />, label: <Link to="/samples">留样台账</Link> },
-];
-
-/** 应用外壳：左侧导航 + 顶部导出备份，负责一次性的本地数据装载 */
+/** 应用外壳：左侧导航 + 顶部导入/导出备份，负责一次性的本地数据装载 */
 export default function App() {
   const { message } = AntApp.useApp();
   const [ready, setReady] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const hydrateHerbs = useHerbStore((s) => s.hydrate);
   const hydrateMethods = useMethodStore((s) => s.hydrate);
   const hydrateBatches = useBatchStore((s) => s.hydrate);
   const hydrateSamples = useSampleStore((s) => s.hydrate);
+  const hydrateConflicts = useConflictStore((s) => s.hydrate);
+  const conflicts = useConflictStore((s) => s.conflicts);
+  const pendingConflicts = conflicts.filter((c) => c.status === 'pending').length;
   const location = useLocation();
 
   useEffect(() => {
@@ -42,7 +42,7 @@ export default function App() {
     (async () => {
       try {
         await seedIfEmpty();
-        await Promise.all([hydrateHerbs(), hydrateMethods(), hydrateBatches(), hydrateSamples()]);
+        await Promise.all([hydrateHerbs(), hydrateMethods(), hydrateBatches(), hydrateSamples(), hydrateConflicts()]);
       } catch (error) {
         message.error(`本地数据装载失败：${(error as Error).message}`);
       } finally {
@@ -54,7 +54,20 @@ export default function App() {
     return () => {
       alive = false;
     };
-  }, [hydrateHerbs, hydrateMethods, hydrateBatches, hydrateSamples, message]);
+  }, [hydrateHerbs, hydrateMethods, hydrateBatches, hydrateSamples, hydrateConflicts, message]);
+
+  const MENU_ITEMS = [
+    { key: '/', icon: <DashboardOutlined />, label: <Link to="/">首页总览</Link> },
+    { key: '/herbs', icon: <ExperimentOutlined />, label: <Link to="/herbs">药材台账</Link> },
+    { key: '/methods', icon: <FireOutlined />, label: <Link to="/methods">炮制方法</Link> },
+    { key: '/batches', icon: <ProfileOutlined />, label: <Link to="/batches">工序记录台</Link> },
+    { key: '/samples', icon: <InboxOutlined />, label: <Link to="/samples">留样台账</Link> },
+    {
+      key: '/conflicts',
+      icon: <MergeCellsOutlined />,
+      label: <Link to="/conflicts">合并冲突{pendingConflicts > 0 ? `（${pendingConflicts}）` : ''}</Link>,
+    },
+  ];
 
   const selectedKey = MENU_ITEMS.map((item) => item.key)
     .filter((key) => (key === '/' ? location.pathname === '/' : location.pathname.startsWith(key)))
@@ -81,6 +94,9 @@ export default function App() {
         <Header style={{ background: '#fff', padding: '0 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Text strong>中草药炮制工序记录台</Text>
           <Space>
+            <Button icon={<ImportOutlined />} onClick={() => setImportOpen(true)}>
+              导入备份
+            </Button>
             <Button icon={<DownloadOutlined />} onClick={handleExport}>
               导出备份
             </Button>
@@ -99,6 +115,7 @@ export default function App() {
           数据保存在浏览器 IndexedDB（gbherbprocess-db），不依赖后端服务
         </Footer>
       </Layout>
+      <ImportMergeModal open={importOpen} onClose={() => setImportOpen(false)} />
     </Layout>
   );
 }

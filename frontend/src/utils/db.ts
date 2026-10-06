@@ -3,12 +3,13 @@ import type { HerbMaterial } from '../types/herb-material';
 import type { ProcessingMethod } from '../types/processing-method';
 import type { ProcessBatch } from '../types/process-batch';
 import type { RetainSample } from '../types/retain-sample';
+import type { MergeConflict } from '../types/merge-conflict';
 
 /** IndexedDB 库名（浏览器本地存储，无后端） */
 export const DB_NAME = 'gbherbprocess-db';
 
 /** 当前 schema 版本，与 db.version(n) 对应 */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 class HerbProcessDB extends Dexie {
   herbs!: Table<HerbMaterial, string>;
@@ -16,6 +17,7 @@ class HerbProcessDB extends Dexie {
   batches!: Table<ProcessBatch, string>;
   samples!: Table<RetainSample, string>;
   meta!: Table<{ key: string; value: string }, string>;
+  conflicts!: Table<MergeConflict, string>;
 
   constructor() {
     super(DB_NAME);
@@ -49,6 +51,11 @@ class HerbProcessDB extends Dexie {
             }
           });
       });
+
+    // v3：新增合并冲突表（备份对账合并产生的冲突持久化，处理结果重开仍在）。
+    this.version(3).stores({
+      conflicts: 'id, status, table, bizKey, detectedAt',
+    });
   }
 }
 
