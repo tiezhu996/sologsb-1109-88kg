@@ -48,6 +48,8 @@ export const useSampleStore = create<SampleState>()((set, get) => ({
   },
 
   createSample: async (input) => {
+    const now = new Date().toISOString();
+    const batch = await db.batches.get(input.batchId);
     const sample: RetainSample = {
       id: uid('sample'),
       sampleNo: input.sampleNo.trim(),
@@ -55,8 +57,10 @@ export const useSampleStore = create<SampleState>()((set, get) => ({
       amountG: Number(input.amountG) || 0,
       retainMonths: Number(input.retainMonths) || 6,
       cabinet: input.cabinet,
-      retainedAt: input.retainedAt ?? new Date().toISOString(),
+      retainedAt: input.retainedAt ?? now,
       observeLogs: [],
+      batchNoSnapshot: batch?.batchNo,
+      updatedAt: now,
     };
     await db.samples.put(sample);
     set({ samples: [...get().samples, sample] });
@@ -68,7 +72,11 @@ export const useSampleStore = create<SampleState>()((set, get) => ({
     if (!current) {
       return;
     }
-    const next: RetainSample = { ...current, ...patch };
+    const next: RetainSample = { ...current, ...patch, updatedAt: new Date().toISOString() };
+    if (patch.batchId) {
+      const batch = await db.batches.get(patch.batchId);
+      next.batchNoSnapshot = batch?.batchNo;
+    }
     await db.samples.put(next);
     set({ samples: get().samples.map((s) => (s.id === id ? next : s)) });
   },
@@ -93,7 +101,7 @@ export const useSampleStore = create<SampleState>()((set, get) => ({
       note: input.note?.trim() || undefined,
     };
     const logs = [...current.observeLogs, log].sort((a, b) => a.date.localeCompare(b.date));
-    const next: RetainSample = { ...current, observeLogs: logs };
+    const next: RetainSample = { ...current, observeLogs: logs, updatedAt: new Date().toISOString() };
     await db.samples.put(next);
     set({ samples: get().samples.map((s) => (s.id === sampleId ? next : s)) });
   },

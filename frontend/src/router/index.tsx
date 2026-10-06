@@ -6,6 +6,7 @@ import HerbList from '../pages/HerbList';
 import MethodList from '../pages/MethodList';
 import BatchBoard from '../pages/BatchBoard';
 import SampleLedger from '../pages/SampleLedger';
+import ConflictCenter from '../pages/ConflictCenter';
 
 function NotFound() {
   return (
@@ -33,6 +34,7 @@ export const routes: RouteObject[] = [
       { path: 'methods', element: <MethodList /> },
       { path: 'batches', element: <BatchBoard /> },
       { path: 'samples', element: <SampleLedger /> },
+      { path: 'conflicts', element: <ConflictCenter /> },
       { path: '*', element: <NotFound /> },
     ],
   },

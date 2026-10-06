@@ -15,6 +15,7 @@ import { HERB_ORIGINS, HERB_PARTS } from '../types/herb-material';
 import { FIRE_LEVELS, type FireLevel } from '../types/processing-method';
 import { PROCESS_DEGREES, type ProcessBatch, type ProcessDegree } from '../types/process-batch';
 import { DEGREE_RULES, judgeDegree, suggestedValues } from '../utils/degree';
+import { batchHerbName, batchMethodName } from '../utils/sync';
 
 const { Title, Paragraph, Text } = Typography;
 
@@ -89,8 +90,21 @@ export default function BatchBoard() {
     });
   }, [batches, visibleHerbs, degreeParam]);
 
-  const herbName = (id: string) => herbs.find((h) => h.id === id)?.name ?? '未知药材';
+  const herbName = (batch: ProcessBatch) => batchHerbName(batch, herbs);
   const methodOf = (id: string) => methods.find((m) => m.id === id);
+  const methodName = (batch: ProcessBatch) => batchMethodName(batch, methods);
+  /** 已锁定批次的火候参数取锁定快照，方法后改不回头影响本批 */
+  const methodViewOf = (batch: ProcessBatch) => {
+    if (batch.locked && batch.lockSnapshot) {
+      return {
+        name: batch.lockSnapshot.methodName,
+        tempRange: batch.lockSnapshot.tempRange,
+        duration: batch.lockSnapshot.duration,
+      };
+    }
+    const m = methodOf(batch.methodId);
+    return m ? { name: m.name, tempRange: m.tempRange, duration: m.duration } : undefined;
+  };
 
   const openCreate = () => {
     setEditing(null);
@@ -184,13 +198,16 @@ export default function BatchBoard() {
 
   const columns: TableColumnsType<ProcessBatch> = [
     { title: '生产批号', dataIndex: 'batchNo', width: 130, render: (v: string) => <Text strong>{v}</Text> },
-    { title: '药材', dataIndex: 'herbId', width: 90, render: (id: string) => herbName(id) },
-    { title: '方法', dataIndex: 'methodId', width: 90, render: (id: string) => methodOf(id)?.name ?? '-' },
+    { title: '药材', dataIndex: 'herbId', width: 90, render: (_, record) => herbName(record) },
+    { title: '方法', dataIndex: 'methodId', width: 90, render: (_, record) => methodName(record) },
     {
       title: '火候',
       dataIndex: 'fireLevel',
       width: 180,
-      render: (v: FireLevel, record) => <FireLevelTag level={v} tempRange={methodOf(record.methodId)?.tempRange} duration={methodOf(record.methodId)?.duration} />,
+      render: (v: FireLevel, record) => {
+        const view = methodViewOf(record);
+        return <FireLevelTag level={v} tempRange={view?.tempRange} duration={view?.duration} />;
+      },
     },
     { title: '投料(kg)', dataIndex: 'feedKg', width: 90, align: 'right' },
     { title: '辅料(kg)', dataIndex: 'auxUsedKg', width: 90, align: 'right' },

@@ -4,6 +4,7 @@ import { METHOD_NAMES, type ProcessingMethod } from '../types/processing-method'
 import type { ProcessBatch } from '../types/process-batch';
 import { CABINETS, type RetainSample } from '../types/retain-sample';
 import { judgeDegree, expectedYieldOf } from './degree';
+import { buildLockSnapshot, ensureSeedLedger } from './sync';
 
 /** 首次打开时写入的示例台账，便于直接查看各页面效果 */
 export const SEED_HERBS: HerbMaterial[] = [
@@ -66,6 +67,8 @@ function buildSeedBatches(): ProcessBatch[] {
       yieldRate,
     });
     const locked = index >= 2;
+    const herb = SEED_HERBS.find((h) => h.id === herbId);
+    const lockedAt = locked ? new Date(new Date(endedAt).getTime() + 30 * 60_000).toISOString() : undefined;
     return {
       id: `batch-${String(index + 1).padStart(3, '0')}`,
       batchNo,
@@ -80,9 +83,12 @@ function buildSeedBatches(): ProcessBatch[] {
       degree: verdict.degree,
       operator,
       locked,
-      lockedAt: locked ? new Date(new Date(endedAt).getTime() + 30 * 60_000).toISOString() : undefined,
+      lockedAt,
+      // 示例锁定批次同样固化锁定版本快照
+      lockSnapshot: locked ? buildLockSnapshot(herb, method) : undefined,
       qcBy: locked ? '质检员 · 赵敏' : undefined,
       remark,
+      updatedAt: lockedAt ?? endedAt,
     };
   });
 }
@@ -112,6 +118,8 @@ function buildSeedSamples(batches: ProcessBatch[]): RetainSample[] {
         logs(new Date(retainedAt).toISOString().slice(0, 10), '色泽符合标准', '气味正常', '无霉变', '赵敏'),
         logs(new Date(Date.now() - (index * 11 + 2) * 86_400_000).toISOString().slice(0, 10), '色泽略深', '气味正常', '无霉变', '赵敏'),
       ],
+      batchNoSnapshot: batch.batchNo,
+      updatedAt: retainedAt,
     };
   });
 }
@@ -129,10 +137,10 @@ export async function seedIfEmpty(): Promise<void> {
 
   await db.transaction('rw', db.herbs, db.methods, db.batches, db.samples, db.meta, async () => {
     if (herbCount === 0) {
-      await db.herbs.bulkPut(SEED_HERBS.filter((h) => HERB_ORIGINS.includes(h.origin)));
+      await db.herbs.bulkPut(SEED_HERBS.filter((h) => HERB_ORIGINS.includes(h.origin)).map((h) => ({ ...h, updatedAt: h.receivedAt })));
     }
     if (methodCount === 0) {
-      await db.methods.bulkPut(SEED_METHODS.filter((m) => METHOD_NAMES.includes(m.name)));
+      await db.methods.bulkPut(SEED_METHODS.filter((m) => METHOD_NAMES.includes(m.name)).map((m) => ({ ...m, updatedAt: '2025-08-01T09:00:00.000Z' })));
     }
     const batches = buildSeedBatches();
     if (batchCount === 0) {
@@ -143,12 +151,27 @@ export async function seedIfEmpty(): Promise<void> {
     }
     await db.meta.put({ key: 'seeded', value: new Date().toISOString() });
   });
+  // 建立示例数据的对账基线：以后导入他人备份时，示例行不会被误判为冲突
+  await ensureSeedLedger();
 }
 
-/** 清空全部本地数据（用于重置演示环境） */
+/** 清空全部本地数据（用于重置演示环境），含对账冲突与导入会话/暂存 */
 export async function resetAll(): Promise<void> {
-  await db.transaction('rw', db.herbs, db.methods, db.batches, db.samples, db.meta, async () => {
-    await Promise.all([db.herbs.clear(), db.methods.clear(), db.batches.clear(), db.samples.clear(), db.meta.clear()]);
-  });
+  await db.transaction(
+    'rw',
+    [db.herbs, db.methods, db.batches, db.samples, db.meta, db.conflicts, db.importSessions, db.staging],
+    async () => {
+      await Promise.all([
+        db.herbs.clear(),
+        db.methods.clear(),
+        db.batches.clear(),
+        db.samples.clear(),
+        db.meta.clear(),
+        db.conflicts.clear(),
+        db.importSessions.clear(),
+        db.staging.clear(),
+      ]);
+    },
+  );
   await seedIfEmpty();
 }

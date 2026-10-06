@@ -43,6 +43,8 @@ export interface ProcessingMethod {
   applicable: string;
   /** 是否为派生方法（由某个基础方法复制派生而来） */
   derivedFrom?: string;
+  /** 最近修改时间 ISO 字符串（导入对账用于判断两侧是否都改过） */
+  updatedAt?: string;
 }
 
 export const FIRE_LEVELS: FireLevel[] = ['文火', '中火', '武火'];

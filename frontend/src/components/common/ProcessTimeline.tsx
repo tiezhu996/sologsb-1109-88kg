@@ -3,6 +3,7 @@ import type { HerbMaterial } from '../../types/herb-material';
 import type { ProcessingMethod } from '../../types/processing-method';
 import type { ProcessBatch, ProcessDegree } from '../../types/process-batch';
 import { formatDate } from '../../utils/degree';
+import { batchHerbName, batchMethodName } from '../../utils/sync';
 
 const { Text } = Typography;
 
@@ -19,7 +20,7 @@ const DEGREE_COLOR: Record<ProcessDegree, string> = {
   太过: 'red',
 };
 
-/** 炮制工序时间线（首页复用），展示最近批次的方法、火候与得率 */
+/** 炮制工序时间线（首页复用），展示最近批次的方法、火候与得率；锁定批次按锁定快照展示 */
 export default function ProcessTimeline({ batches, herbs, methods, limit = 6 }: ProcessTimelineProps) {
   const rows = batches.slice(0, limit);
   if (rows.length === 0) {
@@ -29,8 +30,6 @@ export default function ProcessTimeline({ batches, herbs, methods, limit = 6 }: 
   return (
     <Timeline
       items={rows.map((batch) => {
-        const herb = herbs.find((h) => h.id === batch.herbId);
-        const method = methods.find((m) => m.id === batch.methodId);
         return {
           color: batch.degree === '适中' ? 'green' : batch.degree === '太过' ? 'red' : 'orange',
           children: (
@@ -41,7 +40,7 @@ export default function ProcessTimeline({ batches, herbs, methods, limit = 6 }: 
               </Tag>
               {batch.locked ? <Tag color="blue">已锁定</Tag> : <Tag>待判定</Tag>}
               <div style={{ fontSize: 12, color: '#6b7a70' }}>
-                {herb?.name ?? '未知药材'} · {method?.name ?? '未知方法'} · {batch.fireLevel} ·{' '}
+                {batchHerbName(batch, herbs)} · {batchMethodName(batch, methods)} · {batch.fireLevel} ·{' '}
                 {formatDate(batch.startedAt)} · 得率 {batch.yieldRate}% · 操作人 {batch.operator}
               </div>
             </div>

@@ -21,6 +21,8 @@ export interface HerbMaterial {
   receivedAt: string;
   /** 备注 */
   remark?: string;
+  /** 最近修改时间 ISO 字符串（导入对账用于判断两侧是否都改过） */
+  updatedAt?: string;
 }
 
 export const HERB_ORIGINS: HerbOrigin[] = ['植物', '动物', '矿物'];

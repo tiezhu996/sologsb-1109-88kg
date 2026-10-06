@@ -34,6 +34,7 @@ export const useHerbStore = create<HerbState>()((set, get) => ({
   },
 
   addHerb: async (input) => {
+    const now = new Date().toISOString();
     const herb: HerbMaterial = {
       id: uid('herb'),
       name: input.name.trim(),
@@ -41,8 +42,9 @@ export const useHerbStore = create<HerbState>()((set, get) => ({
       part: input.part,
       batchNo: input.batchNo.trim(),
       feedKg: Number(input.feedKg) || 0,
-      receivedAt: input.receivedAt ?? new Date().toISOString(),
+      receivedAt: input.receivedAt ?? now,
       remark: input.remark?.trim() || undefined,
+      updatedAt: now,
     };
     await db.herbs.put(herb);
     set({ herbs: [herb, ...get().herbs] });
@@ -54,7 +56,7 @@ export const useHerbStore = create<HerbState>()((set, get) => ({
     if (!current) {
       return;
     }
-    const next: HerbMaterial = { ...current, ...patch, feedKg: patch.feedKg !== undefined ? Number(patch.feedKg) : current.feedKg };
+    const next: HerbMaterial = { ...current, ...patch, feedKg: patch.feedKg !== undefined ? Number(patch.feedKg) : current.feedKg, updatedAt: new Date().toISOString() };
     await db.herbs.put(next);
     set({ herbs: get().herbs.map((h) => (h.id === id ? next : h)) });
   },

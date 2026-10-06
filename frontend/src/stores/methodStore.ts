@@ -51,6 +51,7 @@ export const useMethodStore = create<MethodState>()((set, get) => ({
       criterionDimension: input.criterionDimension,
       applicable: input.applicable.trim(),
       derivedFrom: input.derivedFrom,
+      updatedAt: new Date().toISOString(),
     };
     await db.methods.put(method);
     set({ methods: [...get().methods, method] });
@@ -62,7 +63,7 @@ export const useMethodStore = create<MethodState>()((set, get) => ({
     if (!current) {
       return;
     }
-    const next: ProcessingMethod = { ...current, ...patch };
+    const next: ProcessingMethod = { ...current, ...patch, updatedAt: new Date().toISOString() };
     await db.methods.put(next);
     set({ methods: get().methods.map((m) => (m.id === id ? next : m)) });
   },

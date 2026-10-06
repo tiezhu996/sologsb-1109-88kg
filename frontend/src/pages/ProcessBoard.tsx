@@ -2,24 +2,29 @@ import { useMemo } from 'react';
 import { Alert, Button, Card, Col, Row, Space, Table, Tag, Typography } from 'antd';
 import type { TableColumnsType } from 'antd';
 import { Link } from 'react-router-dom';
+import { SafetyCertificateOutlined } from '@ant-design/icons';
 import StatBadge from '../components/common/StatBadge';
 import ProcessTimeline from '../components/common/ProcessTimeline';
 import { useHerbStore } from '../stores/herbStore';
 import { useMethodStore } from '../stores/methodStore';
 import { useBatchStore } from '../stores/batchStore';
 import { useSampleStore } from '../stores/sampleStore';
+import { useSyncStore } from '../stores/syncStore';
 import { dueSamples, formatDate } from '../utils/degree';
+import { batchHerbName, batchMethodName } from '../utils/sync';
 import type { ProcessBatch } from '../types/process-batch';
 import type { SampleExpiry } from '../types/retain-sample';
 
 const { Title, Paragraph, Text } = Typography;
 
-/** 首页：待炮制批次与留样到期提示 */
+/** 首页：待炮制批次、留样到期提示与对账冲突数 */
 export default function ProcessBoard() {
   const herbs = useHerbStore((s) => s.herbs);
   const methods = useMethodStore((s) => s.methods);
   const batches = useBatchStore((s) => s.batches);
   const samples = useSampleStore((s) => s.samples);
+  const pendingConflicts = useSyncStore((s) => s.conflicts.filter((c) => c.status === 'pending').length);
+  const resolvedConflicts = useSyncStore((s) => s.conflicts.filter((c) => c.status === 'resolved').length);
 
   const pending = useMemo(() => batches.filter((b) => !b.locked), [batches]);
   const due = useMemo(() => dueSamples(samples, 30), [samples]);
@@ -38,13 +43,14 @@ export default function ProcessBoard() {
     return Number((batches.reduce((sum, b) => sum + b.yieldRate, 0) / batches.length).toFixed(1));
   }, [batches]);
 
-  const herbName = (id: string) => herbs.find((h) => h.id === id)?.name ?? '未知药材';
-  const methodName = (id: string) => methods.find((m) => m.id === id)?.name ?? '未知方法';
+  // 已锁定批次按锁定时的药材/方法快照展示；未锁定批次实时取药材/方法表
+  const herbName = (batch: ProcessBatch) => batchHerbName(batch, herbs);
+  const methodName = (batch: ProcessBatch) => batchMethodName(batch, methods);
 
   const pendingColumns: TableColumnsType<ProcessBatch> = [
     { title: '生产批号', dataIndex: 'batchNo', width: 130, render: (v: string) => <Text strong>{v}</Text> },
-    { title: '药材', dataIndex: 'herbId', width: 100, render: (id: string) => herbName(id) },
-    { title: '炮制方法', dataIndex: 'methodId', width: 100, render: (id: string) => methodName(id) },
+    { title: '药材', dataIndex: 'herbId', width: 100, render: (_, record) => herbName(record) },
+    { title: '炮制方法', dataIndex: 'methodId', width: 100, render: (_, record) => methodName(record) },
     { title: '投料量(kg)', dataIndex: 'feedKg', width: 100, align: 'right' },
     { title: '辅料用量(kg)', dataIndex: 'auxUsedKg', width: 110, align: 'right' },
     {
@@ -112,6 +118,39 @@ export default function ProcessBoard() {
           <StatBadge label="平均得率" value={avgYield} unit="%" status="success" hint={`适中 ${degreeCount['适中']} / 不及 ${degreeCount['不及']} / 太过 ${degreeCount['太过']}`} />
         </Col>
       </Row>
+
+      {pendingConflicts > 0 ? (
+        <Alert
+          style={{ marginBottom: 16 }}
+          type="warning"
+          showIcon
+          icon={<SafetyCertificateOutlined />}
+          message={`备份对账有 ${pendingConflicts} 条同名冲突待选择（未决前不入本机）`}
+          description="这些记录在本机与他机备份中都被修改过。前往对账中心逐字段对比并选择保留版本，处理后被挂起的批次/留样会自动续传并入。"
+          action={
+            <Link to="/conflicts">
+              <Button size="small" type="primary">
+                去处理冲突
+              </Button>
+            </Link>
+          }
+        />
+      ) : resolvedConflicts > 0 ? (
+        <Alert
+          style={{ marginBottom: 16 }}
+          type="success"
+          showIcon
+          icon={<SafetyCertificateOutlined />}
+          message={`备份对账无未决冲突（${resolvedConflicts} 条处理记录保留在对账中心，重开仍在）`}
+          action={
+            <Link to="/conflicts">
+              <Button size="small" type="link">
+                查看对账记录
+              </Button>
+            </Link>
+          }
+        />
+      ) : null}
 
       {due.length > 0 ? (
         <Alert

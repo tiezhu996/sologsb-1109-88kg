@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { db } from '../utils/db';
 import { uid } from '../utils/id';
+import { buildLockSnapshot } from '../utils/sync';
 import type { FireLevel } from '../types/processing-method';
 import type { ProcessBatch, ProcessDegree } from '../types/process-batch';
 
@@ -45,6 +46,9 @@ export const useBatchStore = create<BatchState>()((set, get) => ({
   },
 
   createBatch: async (input, lock = false) => {
+    const now = new Date().toISOString();
+    const herb = await db.herbs.get(input.herbId);
+    const method = await db.methods.get(input.methodId);
     const batch: ProcessBatch = {
       id: uid('batch'),
       batchNo: input.batchNo.trim(),
@@ -59,8 +63,11 @@ export const useBatchStore = create<BatchState>()((set, get) => ({
       degree: input.degree,
       operator: input.operator.trim(),
       locked: lock,
-      lockedAt: lock ? new Date().toISOString() : undefined,
+      lockedAt: lock ? now : undefined,
+      // 创建即锁定时当场固化药材名/炮制方法版本，之后二者修改不回头影响本批
+      lockSnapshot: lock ? buildLockSnapshot(herb, method) : undefined,
       remark: input.remark?.trim() || undefined,
+      updatedAt: now,
     };
     await db.batches.put(batch);
     set({ batches: [batch, ...get().batches] });
@@ -75,9 +82,13 @@ export const useBatchStore = create<BatchState>()((set, get) => ({
     if (current.locked && !force) {
       return false;
     }
-    const next: ProcessBatch = { ...current, ...patch };
+    const next: ProcessBatch = { ...current, ...patch, updatedAt: new Date().toISOString() };
     if (force) {
       next.qcBy = next.qcBy ?? '质检员 · 赵敏';
+      // 质检员改判属显式授权动作：以当前药材/方法版本重新固化锁定快照
+      const herb = await db.herbs.get(next.herbId);
+      const method = await db.methods.get(next.methodId);
+      next.lockSnapshot = buildLockSnapshot(herb, method);
     }
     await db.batches.put(next);
     set({ batches: get().batches.map((b) => (b.id === id ? next : b)) });
@@ -94,7 +105,16 @@ export const useBatchStore = create<BatchState>()((set, get) => ({
     if (!current) {
       return;
     }
-    const next: ProcessBatch = { ...current, locked: true, lockedAt: new Date().toISOString() };
+    const herb = await db.herbs.get(current.herbId);
+    const method = await db.methods.get(current.methodId);
+    // 锁定瞬间固化版本：此后炮制方法或药材再改，本批仍以锁定版本为准
+    const next: ProcessBatch = {
+      ...current,
+      locked: true,
+      lockedAt: new Date().toISOString(),
+      lockSnapshot: buildLockSnapshot(herb, method),
+      updatedAt: new Date().toISOString(),
+    };
     await db.batches.put(next);
     set({ batches: get().batches.map((b) => (b.id === id ? next : b)) });
   },
@@ -104,7 +124,7 @@ export const useBatchStore = create<BatchState>()((set, get) => ({
     if (!current) {
       return;
     }
-    const next: ProcessBatch = { ...current, locked: false, qcBy };
+    const next: ProcessBatch = { ...current, locked: false, qcBy, updatedAt: new Date().toISOString() };
     await db.batches.put(next);
     set({ batches: get().batches.map((b) => (b.id === id ? next : b)) });
   },

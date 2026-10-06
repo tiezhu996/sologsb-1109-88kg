@@ -32,6 +32,10 @@ export interface RetainSample {
   retainedAt: string;
   /** 观察记录，按日期追加 */
   observeLogs: ObserveLog[];
+  /** 锁定批次的批号快照（批号/留样编号是对账自然键，快照保证引用不被改写） */
+  batchNoSnapshot?: string;
+  /** 最近修改时间 ISO 字符串（导入对账用于判断两侧是否都改过） */
+  updatedAt?: string;
 }
 
 /** 留样柜位（A/B/C 三柜，每柜 12 位） */

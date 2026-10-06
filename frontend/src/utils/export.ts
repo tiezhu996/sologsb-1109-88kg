@@ -51,32 +51,5 @@ export function downloadCsv<T extends Record<string, unknown>>(filename: string,
   const body = rows
     .map((row) => columns.map((c) => `"${String(row[c.key] ?? '').replace(/"/g, '""')}"`).join(','))
     .join('\n');
-  downloadText(filename, `\ufeff${header}\n${body}`, 'text/csv');
-}
-
-/** 恢复 JSON 备份 */
-export async function importBackup(text: string): Promise<{ herbs: number; methods: number; batches: number; samples: number }> {
-  const payload = JSON.parse(text) as Partial<BackupPayload>;
-  if (!payload || payload.app !== 'gbherbprocess') {
-    throw new Error('备份文件格式不匹配（缺少 app=gbherbprocess 标记）');
-  }
-  const counts = {
-    herbs: payload.herbs?.length ?? 0,
-    methods: payload.methods?.length ?? 0,
-    batches: payload.batches?.length ?? 0,
-    samples: payload.samples?.length ?? 0,
-  };
-  await db.transaction('rw', db.herbs, db.methods, db.batches, db.samples, async () => {
-    await Promise.all([
-      db.herbs.clear(),
-      db.methods.clear(),
-      db.batches.clear(),
-      db.samples.clear(),
-    ]);
-    if (payload.herbs?.length) await db.herbs.bulkPut(payload.herbs as never[]);
-    if (payload.methods?.length) await db.methods.bulkPut(payload.methods as never[]);
-    if (payload.batches?.length) await db.batches.bulkPut(payload.batches as never[]);
-    if (payload.samples?.length) await db.samples.bulkPut(payload.samples as never[]);
-  });
-  return counts;
+  downloadText(filename, `﻿${header}\n${body}`, 'text/csv');
 }
